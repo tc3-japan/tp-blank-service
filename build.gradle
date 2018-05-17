@@ -1,0 +1,67 @@
+buildscript {
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    classpath 'gradle.plugin.com.palantir.gradle.docker:gradle-docker:0.19.2'
+    classpath 'org.yaml:snakeyaml:1.21'
+  }
+}
+
+plugins {
+  id 'org.springframework.boot' version '2.0.1.RELEASE'
+  id 'net.ltgt.apt' version '0.10'
+  id 'io.franzbecker.gradle-lombok' version '1.11'
+}
+
+apply plugin: 'java'
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'eclipse'
+apply plugin: 'com.palantir.docker'
+
+sourceCompatibility = '1.9'
+targetCompatibility = '1.9'
+
+def profile = project.hasProperty('production') ? 'production' : ''
+def applicationConfig = new org.yaml.snakeyaml.Yaml().load(("/Users/kohata/work/projects/topcoder/Japan/oly-dl/git/tp-blank-service/src/main/resources/application-${profile ? profile : 'default'}.yml" as File).text)
+def awsProfile = project.hasProperty('awsProfile') ? awsProfile : 'default'
+
+springBoot {
+  mainClassName = 'com.gigops.miyako.BlankApplication'
+}
+bootJar {
+  excludeDevtools = true
+}
+bootRun {
+  systemProperties = [
+    'spring.profiles.active': profile
+  ]
+}
+
+repositories {
+  jcenter()  
+}
+
+dependencies {
+  compile 'org.springframework.boot:spring-boot-starter-web:2.0.1.RELEASE'
+  compile 'org.springframework.boot:spring-boot-starter-logging:2.0.1.RELEASE'
+  compile 'org.springframework.boot:spring-boot-starter-actuator:2.0.1.RELEASE'
+  compileOnly 'org.projectlombok:lombok:1.16.20'
+  apt 'org.projectlombok:lombok:1.16.20'
+  testCompile 'org.springframework.boot:spring-boot-starter-test:2.0.2.RELEASE';
+}
+
+lombok {
+  version = '1.16.20'
+  sha256 = ''
+}
+
+docker {
+  dependsOn build
+  name 'secureds/user-service'
+  files bootJar.archivePath
+  buildArgs([
+    'PROFILE': profile,
+    'JAR_FILE': bootJar.archiveName
+  ])
+}
