@@ -48,7 +48,7 @@ jobs:
             echo PROFILE=$([[ $CIRCLE_BRANCH = "master" ]] && echo "production" || echo "develop") >> "$BASH_ENV"
       - run:
           name: build and test with production mode
-          command: ./gradlew build -x test -x spotbugsMain -x spotbugsTest -P${PROFILE}
+          command: ./gradlew build -x test -P${PROFILE}
       - save_cache:
           key: gradle-cache-{{ checksum "build.gradle" }}
           paths:
