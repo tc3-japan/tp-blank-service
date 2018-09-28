@@ -22,7 +22,13 @@ apply plugin: 'com.palantir.docker'
 sourceCompatibility = '1.9'
 targetCompatibility = '1.9'
 
-def profile = project.hasProperty('production') ? 'production' : ''
+def profile = '';
+if(project.hasProperty('develop')) {
+  profile = 'develop'
+}
+if(project.hasProperty('production')) {
+  profile = 'production'
+}
 def applicationConfig = new org.yaml.snakeyaml.Yaml().load(("src/main/resources/application-${profile ? profile : 'default'}.yml" as File).text)
 def awsProfile = project.hasProperty('awsProfile') ? awsProfile : 'default'
 
