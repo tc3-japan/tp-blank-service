@@ -78,13 +78,13 @@ jobs:
       - setup_remote_docker
       - run:
           name: build docker container
-          command: ./gradlew docker -x test -x spotbugsMain -x spotbugsTest -P${PROFILE}
+          command: ./gradlew docker -x test -P${PROFILE}
       - run:
           name: Push docker container
           command: |
             eval $(aws ecr get-login --no-include-email --region $AWS_REGION | sed 's|https://||')
-            docker tag secureds/submission-service:latest ${DOCKER_REPOSITORY_ENDPOINT}/secureds/submission-service:latest
-            docker push ${DOCKER_REPOSITORY_ENDPOINT}/secureds/submission-service:latest
+            docker tag secureds/dummy-service:latest ${DOCKER_REPOSITORY_ENDPOINT}/secureds/dummy-service:latest
+            docker push ${DOCKER_REPOSITORY_ENDPOINT}/secureds/dummy-service:latest
             ./gradlew deploy -P$PROFILE
       - save_cache:
           key: gradle-cache-{{ checksum "build.gradle" }}
