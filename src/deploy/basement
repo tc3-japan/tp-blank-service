@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+# frozen_string_literal: true
+
+Dir.chdir(File.dirname(__FILE__))
+
+service = ARGV[0]
+command = ARGV[1]
+profile = ARGV[2]
+aws_profile = ARGV[3] || 'default'
+
+require 'bundler/setup'
+require 'aws-sdk'
+require 'hashie'
+require 'ostruct'
+require 'netaddr'
+require './services/core/base'
+require "./services/#{service}/service"
+
+config_path = "../main/resources/application-#{profile == 'develop' ? 'develop' : profile}.yml"
+config = Hashie::Mash.load(config_path).deep_merge(deploy: { aws: { profile: aws_profile } })
+
+Service.new(config).public_send(command)

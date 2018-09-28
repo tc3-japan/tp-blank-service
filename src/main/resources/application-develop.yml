@@ -39,3 +39,12 @@ server:
 cors:
   allowed-origins: "*"
   allowed-methods: GET,POST,PUT,DELETE,HEAD
+
+deploy:
+  aws:
+    region: us-west-2
+    ecs:
+      cluster:
+        name: secureds-api-cluster
+        service:
+          name: tp-dummy-service

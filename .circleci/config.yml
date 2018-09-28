@@ -1,0 +1,108 @@
+# Setup CircleCI
+
+# 1. Set ENVIRONMENT_VARIABLE to CircleCI
+# ---------------------------------------------------
+# AWS_ACCESS_KEY_ID_develop=....
+# AWS_ACCESS_KEY_ID_production=....
+# AWS_SECRET_ACCESS_KEY_develop=....
+# AWS_SECRET_ACCESS_KEY_production=....
+# DOCKER_REPOSITORY_ENDPOINT_develop=849405444987.dkr.ecr.us-east-1.amazonaws.com
+# DOCKER_REPOSITORY_ENDPOINT_production=....dkr.ecr.us-west-2.amazonaws.com
+# ---------------------------------------------------
+
+# 2. Deploy the docker image
+# ---------------------------------------------------
+# Dockerfile:
+# ---------------------------------------------------
+# FROM circleci/openjdk:9-jdk-node-browsers
+# 
+# RUN sudo apt-get install awscli
+# RUN sudo apt-get install -y ruby-dev
+# ENV BUNDLE_PATH=/home/circleci/bundle \
+#   GEM_HOME=/home/circleci/.gem \
+#   PATH=/home/circleci/.gem/bin:$PATH
+# RUN gem install bundler
+# ---------------------------------------------------
+# Deploy command:
+# ---------------------------------------------------
+# docker build -t tc3/ci-jdk9 .
+# docker tag tc3/ci-jdk9:latest 849405444987.dkr.ecr.us-east-1.amazonaws.com/tc3/ci-jdk9:latest
+# docker push 849405444987.dkr.ecr.us-east-1.amazonaws.com/tc3/ci-jdk9:latest
+# ---------------------------------------------------
+
+version: 2
+jobs:
+  build:
+    docker:
+      - image: ${DOCKER_REPOSITORY_ENDPOINT_develop}/tc3/ci-jdk9:latest
+        aws_auth:
+          aws_access_key_id: $AWS_ACCESS_KEY_ID_develop
+          aws_secret_access_key: $AWS_SECRET_ACCESS_KEY_develop
+    steps:
+      - checkout
+      - restore_cache:
+          key: gradle-cache-{{ checksum "build.gradle" }}
+      - run:
+          name: setup environment
+          command: |
+            echo PROFILE=$([[ $CIRCLE_BRANCH = "master" ]] && echo "production" || echo "develop") >> "$BASH_ENV"
+      - run:
+          name: build and test with production mode
+          command: ./gradlew build -x test -x spotbugsMain -x spotbugsTest -P${PROFILE}
+      - save_cache:
+          key: gradle-cache-{{ checksum "build.gradle" }}
+          paths:
+            - ~/.gradle
+            - .gradle
+  deploy:
+    docker:
+      - image: ${DOCKER_REPOSITORY_ENDPOINT_develop}/tc3/ci-jdk9:latest
+        aws_auth:
+          aws_access_key_id: $AWS_ACCESS_KEY_ID_develop
+          aws_secret_access_key: $AWS_SECRET_ACCESS_KEY_develop
+    steps:
+      - checkout
+      - restore_cache:
+          key: gradle-cache-{{ checksum "build.gradle" }}
+          key: bundle-cache-{{ checksum "src/deploy/Gemfile.lock" }}
+      - run:
+          name: setup environment
+          command: |
+            echo PROFILE=$([[ $CIRCLE_BRANCH = "master" ]] && echo "production" || echo "develop") >> "$BASH_ENV"
+            DOCKER_REPOSITORY_ENDPOINT=$([[ $CIRCLE_BRANCH = "master" ]] && echo $DOCKER_REPOSITORY_ENDPOINT_production || echo $DOCKER_REPOSITORY_ENDPOINT_develop)
+            echo DOCKER_REPOSITORY_ENDPOINT=$DOCKER_REPOSITORY_ENDPOINT >> "$BASH_ENV"
+            echo AWS_REGION=$(expr "$DOCKER_REPOSITORY_ENDPOINT" : '.*\.\([a-z0-9-]*\)\.amazon.*') >> "$BASH_ENV"
+            AWS_ACCESS_KEY_ID=$([[ $CIRCLE_BRANCH = "master" ]] && echo $AWS_ACCESS_KEY_ID_production || echo $AWS_ACCESS_KEY_ID_develop)
+            AWS_SECRET_ACCESS_KEY=$([[ $CIRCLE_BRANCH = "master" ]] && echo $AWS_SECRET_ACCESS_KEY_production || echo $AWS_SECRET_ACCESS_KEY_develop)
+            mkdir ~/.aws && echo -e "[default]\naws_access_key_id=$AWS_ACCESS_KEY_ID\naws_secret_access_key=$AWS_SECRET_ACCESS_KEY\n" > ~/.aws/credentials
+      - setup_remote_docker
+      - run:
+          name: build docker container
+          command: ./gradlew docker -x test -x spotbugsMain -x spotbugsTest -P${PROFILE}
+      - run:
+          name: Push docker container
+          command: |
+            eval $(aws ecr get-login --no-include-email --region $AWS_REGION | sed 's|https://||')
+            docker tag secureds/submission-service:latest ${DOCKER_REPOSITORY_ENDPOINT}/secureds/submission-service:latest
+            docker push ${DOCKER_REPOSITORY_ENDPOINT}/secureds/submission-service:latest
+            ./gradlew deploy -P$PROFILE
+      - save_cache:
+          key: gradle-cache-{{ checksum "build.gradle" }}
+          paths:
+            - ~/.gradle
+            - .gradle
+      - save_cache:
+          key: bundle-cache-{{ checksum "src/deploy/Gemfile.lock" }}
+          paths:
+            - /home/circleci/bundle
+workflows:
+  version: 2
+  main:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+          filters:
+            branches:
+              only: /^(develop|master)$/
