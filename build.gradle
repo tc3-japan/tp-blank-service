@@ -71,3 +71,16 @@ docker {
     'JAR_FILE': bootJar.archiveName
   ])
 }
+
+task deploy {
+  doLast {
+    exec {
+      workingDir 'src/deploy/'
+      commandLine 'bundle', 'install'
+    }
+    exec {
+      workingDir 'src/deploy'
+      commandLine './basement', 'ecs', 'deploy', profile ? profile : 'develop', awsProfile
+    }
+  }
+}
