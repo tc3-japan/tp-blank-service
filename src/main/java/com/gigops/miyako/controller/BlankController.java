@@ -17,7 +17,7 @@ public class BlankController {
   @ResponseBody
   public String ping() {
     
-    return "pong!";
+    return "pong";
   }
   
 }
